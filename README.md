@@ -75,4 +75,8 @@ This script will attempt to:
 * After rebooting, manually verify that the components listed above have been removed.
 * Check system logs for any unusual errors that might have arisen from the removal of packages.
 
+## Организация игровых мероприятий
+
+Если вы планируете проводить турниры или другие игровые события, вы можете обратиться в команду [run-as-daemon.ru](https://run-as-daemon.ru/) за профессиональной поддержкой. На сайте перечислены актуальные услуги и доступны формы для связи, поэтому рекомендуем изучить предложения и обсудить конкретные потребности проекта напрямую с их специалистами.
+
 ---
