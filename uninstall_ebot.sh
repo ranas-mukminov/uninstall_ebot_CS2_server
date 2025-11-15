@@ -10,6 +10,7 @@ Usage: $0 [options]
 Options:
   --force                 Run without interactive confirmations for destructive steps.
   --include-common-tools  Also remove common utility packages (nano, wget, curl, git, unzip, screen).
+  --preserve-home         Keep /home/ebot instead of deleting it.
   --purge-mysql-data      Remove /var/lib/mysql directory after package removal.
   -h, --help              Show this help message.
 USAGE
@@ -17,21 +18,22 @@ USAGE
 
 FORCE=0
 INCLUDE_COMMON_TOOLS=0
+PRESERVE_HOME=0
 PURGE_MYSQL_DATA=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --force)
       FORCE=1
-      shift
       ;;
     --include-common-tools)
       INCLUDE_COMMON_TOOLS=1
-      shift
+      ;;
+    --preserve-home)
+      PRESERVE_HOME=1
       ;;
     --purge-mysql-data)
       PURGE_MYSQL_DATA=1
-      shift
       ;;
     -h|--help)
       usage
@@ -43,15 +45,26 @@ while [[ $# -gt 0 ]]; do
       exit 1
       ;;
   esac
+  shift
+
 done
 
 prompt_confirm() {
   local prompt_message="$1"
   if [[ ${FORCE} -eq 1 ]]; then
+    log_info "${prompt_message} -- auto-confirmed due to --force flag."
     return 0
   fi
-  read -r -p "${prompt_message} [yes/NO]: " reply
-  [[ "${reply}" == "yes" ]]
+  local reply=""
+  read -r -p "${prompt_message} [y/N]: " reply
+  case "${reply}" in
+    y|Y|yes|YES)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 log_info() {
@@ -78,18 +91,32 @@ command_exists() {
 }
 
 service_exists() {
-  command_exists systemctl && systemctl list-unit-files "$1" >/dev/null 2>&1
+  local unit="$1"
+  if ! command_exists systemctl; then
+    return 1
+  fi
+  if systemctl status "$unit" >/dev/null 2>&1; then
+    return 0
+  fi
+  if systemctl list-unit-files "$unit" >/dev/null 2>&1; then
+    return 0
+  fi
+  [[ -f "/etc/systemd/system/${unit}" ]] || [[ -f "/lib/systemd/system/${unit}" ]]
 }
 
 filter_installed_packages() {
   local -n source_array=$1
   local -a installed=()
   local pkg
+  declare -A seen=()
   for pkg in "${source_array[@]}"; do
-    if dpkg -s "$pkg" >/dev/null 2>&1; then
-      installed+=("$pkg")
-    else
-      log_info "Package '$pkg' is not installed; skipping." >&2
+    if [[ -n "${pkg}" && -z "${seen[$pkg]:-}" ]]; then
+      seen[$pkg]=1
+      if dpkg -s "$pkg" >/dev/null 2>&1; then
+        installed+=("$pkg")
+      else
+        log_info "Package '$pkg' is not installed; skipping." >&2
+      fi
     fi
   done
   printf '%s\n' "${installed[@]}"
@@ -97,6 +124,12 @@ filter_installed_packages() {
 
 ensure_noninteractive_apt() {
   export DEBIAN_FRONTEND=noninteractive
+}
+
+collect_php74_packages() {
+  if command_exists dpkg-query; then
+    dpkg-query -f '${binary:Package}\n' -W 'php7.4*' 2>/dev/null | sort -u
+  fi
 }
 
 require_root
@@ -107,10 +140,18 @@ SERVICES=(ebot-cs2-app.service ebot-cs2-logs.service)
 log_info "Stopping and disabling eBot services..."
 for service in "${SERVICES[@]}"; do
   if service_exists "$service"; then
-    systemctl stop "$service" && log_info "Stopped $service" || log_warn "Failed to stop $service"
-    systemctl disable "$service" && log_info "Disabled $service" || log_warn "Failed to disable $service"
+    if systemctl stop "$service"; then
+      log_info "Stopped $service"
+    else
+      log_warn "Failed to stop $service"
+    fi
+    if systemctl disable "$service"; then
+      log_info "Disabled $service"
+    else
+      log_warn "Failed to disable $service"
+    fi
   else
-    log_info "Service $service not found; skipping."
+    log_info "Service $service not found or already removed; skipping."
   fi
   unit_file="/etc/systemd/system/${service}"
   if [[ -f "$unit_file" ]]; then
@@ -133,10 +174,16 @@ else
   log_info "crontab command not available; skipping cron cleanup."
 fi
 
-log_info "Removing eBot application files..."
+log_info "Handling eBot application files..."
 if [[ -d /home/ebot ]]; then
-  rm -rf /home/ebot
-  log_success "eBot application files removed."
+  if [[ ${PRESERVE_HOME} -eq 1 ]]; then
+    log_info "/home/ebot preserved due to --preserve-home flag."
+  elif prompt_confirm "Remove /home/ebot directory and all of its contents?"; then
+    rm -rf /home/ebot
+    log_success "/home/ebot removed."
+  else
+    log_warn "Removal of /home/ebot skipped by user."
+  fi
 else
   log_info "/home/ebot not found; skipping."
 fi
@@ -145,40 +192,70 @@ log_info "Removing Apache configuration for eBot..."
 if command_exists a2dissite; then
   a2dissite ebotcs2.conf &>/dev/null || log_info "Site ebotcs2.conf not enabled."
 fi
+if [[ -L /etc/apache2/sites-enabled/ebotcs2.conf ]]; then
+  rm -f /etc/apache2/sites-enabled/ebotcs2.conf
+  log_info "Removed Apache sites-enabled symlink."
+fi
 if [[ -f /etc/apache2/sites-available/ebotcs2.conf ]]; then
   rm -f /etc/apache2/sites-available/ebotcs2.conf
   log_info "Removed Apache site definition."
 fi
-if service_exists apache2.service; then
-  systemctl restart apache2 || log_warn "Failed to restart Apache."
+if service_exists apache2.service && systemctl is-active --quiet apache2; then
+  if systemctl restart apache2; then
+    log_success "Apache restarted."
+  else
+    log_warn "Failed to restart Apache."
+  fi
+else
+  log_info "Apache service inactive or unavailable; restart skipped."
 fi
 log_success "Apache configuration for eBot processed."
 
 log_info "Removing phpMyAdmin..."
 if [[ -d /usr/share/phpmyadmin ]]; then
-  rm -rf /usr/share/phpmyadmin
-  log_success "phpMyAdmin removed."
+  if prompt_confirm "Remove phpMyAdmin directory /usr/share/phpmyadmin?"; then
+    rm -rf /usr/share/phpmyadmin
+    log_success "phpMyAdmin removed."
+  else
+    log_warn "phpMyAdmin removal skipped by user."
+  fi
 else
   log_info "phpMyAdmin directory not found; skipping."
 fi
 
 log_info "Removing Composer..."
 if [[ -f /usr/bin/composer ]]; then
-  rm -f /usr/bin/composer
-  log_success "Composer removed."
+  if prompt_confirm "Remove Composer binary /usr/bin/composer?"; then
+    rm -f /usr/bin/composer
+    log_success "Composer removed."
+  else
+    log_warn "Composer removal skipped by user."
+  fi
 else
   log_info "Composer binary not found; skipping."
 fi
 
 log_info "Uninstalling global NPM packages (n, yarn, socket.io, etc.)..."
+GLOBAL_NPM_PACKAGES=(socket.io archiver formidable ts-node n yarn)
 if command_exists npm; then
-  if ! npm -g uninstall socket.io archiver formidable ts-node n yarn; then
-    log_warn "Some global npm packages might not have been installed or failed to uninstall."
-  fi
+  for pkg in "${GLOBAL_NPM_PACKAGES[@]}"; do
+    if npm list -g "$pkg" --depth=0 >/dev/null 2>&1; then
+      if npm -g uninstall "$pkg"; then
+        log_info "Uninstalled global npm package '$pkg'."
+      else
+        log_warn "Failed to uninstall global npm package '$pkg'."
+      fi
+    else
+      log_info "Global npm package '$pkg' not found; skipping."
+    fi
+  done
   if [[ -d /usr/local/n ]]; then
-    log_info "Removing Node versions installed by 'n' in /usr/local/n..."
-    rm -rf /usr/local/n
-    log_success "Directory /usr/local/n removed."
+    if prompt_confirm "Remove Node versions installed by 'n' under /usr/local/n?"; then
+      rm -rf /usr/local/n
+      log_success "Directory /usr/local/n removed."
+    else
+      log_warn "Removal of /usr/local/n skipped by user."
+    fi
   fi
 else
   log_info "npm not available; skipping global package removal."
@@ -188,9 +265,12 @@ log_success "Global NPM packages processed."
 
 log_info "Checking for Snap packages (certbot)..."
 if command_exists snap; then
-  if snap list certbot &>/dev/null; then
+  if snap list certbot >/dev/null 2>&1; then
     if snap remove certbot; then
-      rm -f /usr/bin/certbot
+      if [[ -L /usr/bin/certbot ]]; then
+        rm -f /usr/bin/certbot
+        log_info "Removed /usr/bin/certbot symlink."
+      fi
       log_success "Certbot snap removed."
     else
       log_warn "Failed to remove certbot snap."
@@ -205,8 +285,15 @@ fi
 log_info "Checking for ondrej/php PPA..."
 if command_exists add-apt-repository; then
   if ls /etc/apt/sources.list.d/ondrej-ubuntu-php*.list >/dev/null 2>&1; then
-    add-apt-repository --remove ppa:ondrej/php -y
-    log_success "ondrej/php PPA removed."
+    if prompt_confirm "Remove ondrej/php PPA from APT sources?"; then
+      if add-apt-repository --remove ppa:ondrej/php -y; then
+        log_success "ondrej/php PPA removed."
+      else
+        log_warn "Failed to remove ondrej/php PPA."
+      fi
+    else
+      log_warn "Removal of ondrej/php PPA skipped by user."
+    fi
   else
     log_info "ondrej/php PPA not found; skipping."
   fi
@@ -215,17 +302,22 @@ else
 fi
 
 log_info "Evaluating APT packages to uninstall..."
-PACKAGES_TO_UNINSTALL=(
-  libapache2-mod-php7.4 apache2 redis-server mysql-server
-  php7.4-fpm php7.4-redis php7.4-cgi php7.4-cli php7.4-dev php7.4-phpdbg
-  php7.4-bcmath php7.4-bz2 php7.4-common php7.4-curl php7.4-dba php7.4-enchant
-  php7.4-gd php7.4-gmp php7.4-imap php7.4-interbase php7.4-intl php7.4-ldap
-  php7.4-mbstring php7.4-mysql php7.4-odbc php7.4-pgsql php7.4-pspell
-  php7.4-readline php7.4-snmp php7.4-soap php7.4-sqlite3 php7.4-sybase
-  php7.4-tidy php7.4-xml php7.4-xmlrpc php7.4-zip php7.4-opcache php7.4 php7.4-xsl
-  nodejs npm
+BASE_PACKAGES=(
+  apache2
+  redis-server
+  mysql-server
+  nodejs
+  npm
   language-pack-en-base
+  libapache2-mod-php7.4
 )
+
+PHP_PACKAGES=()
+while IFS= read -r php_pkg; do
+  PHP_PACKAGES+=("${php_pkg}")
+done < <(collect_php74_packages || true)
+
+PACKAGES_TO_UNINSTALL=("${BASE_PACKAGES[@]}" "${PHP_PACKAGES[@]}")
 COMMON_TOOLS=(nano wget curl git unzip screen)
 
 mapfile -t INSTALLED_PACKAGES < <(filter_installed_packages PACKAGES_TO_UNINSTALL)

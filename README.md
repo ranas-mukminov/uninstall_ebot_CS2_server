@@ -18,65 +18,92 @@ This script attempts to uninstall eBot CS2 and all associated components and con
 
 This script will attempt to:
 
-* **Stop and Disable eBot Services:** `ebot-cs2-app` and `ebot-cs2-logs`.
+* **Stop and Disable eBot Services:** `ebot-cs2-app` and `ebot-cs2-logs`, with safety checks to avoid touching already-removed units.
 * **Remove eBot Systemd Service Files.**
 * **Remove eBot Cronjobs** (specifically those created by the installer for monitoring eBot services).
-* **Delete eBot Application Files:** Typically located in `/home/ebot`.
-* **Remove eBot Apache Configuration:** The `ebotcs2.conf` site configuration and related symlinks.
-* **Uninstall phpMyAdmin:** (The manually installed version from `/usr/share/phpmyadmin`).
-* **Uninstall Composer:** (The manually installed version from `/usr/bin/composer`).
-* **Uninstall Global NPM Packages:** `socket.io`, `archiver`, `formidable`, `ts-node`, `n`, `yarn`.
-* **Remove Node.js versions installed by `n`:** Typically from `/usr/local/n`.
-* **Uninstall Snap Packages:** `certbot` (and its symlink `/usr/bin/certbot`).
-* **Remove PPA:** `ppa:ondrej/php`.
+* **Delete or Preserve eBot Application Files:** `/home/ebot` is deleted only after confirmation or when `--force` is used; the `--preserve-home` flag keeps the directory intact.
+* **Remove eBot Apache Configuration:** The `ebotcs2.conf` site configuration and related symlinks. Apache is restarted only if it is currently active.
+* **Uninstall phpMyAdmin** and **Composer** if you confirm their removal.
+* **Uninstall Global NPM Packages:** `socket.io`, `archiver`, `formidable`, `ts-node`, `n`, `yarn` are evaluated individually so missing packages do not stop the process.
+* **Remove Node.js versions installed by `n`:** `/usr/local/n` is deleted only after confirmation.
+* **Uninstall Snap Packages:** `certbot` (and its symlink `/usr/bin/certbot` when it is a symlink).
+* **Remove PPA:** `ppa:ondrej/php`, with an explicit confirmation prompt.
 * **Purge APT Packages:**
-    * Server Software: Apache (`apache2`), MySQL Server (`mysql-server`), Redis Server (`redis-server`).
-    * PHP: PHP 7.4 and all its extensions installed by the original script (e.g., `php7.4-fpm`, `php7.4-mysql`, `php7.4-curl`, etc.).
-    * Node.js/NPM: `nodejs`, `npm` (installed via apt).
-    * Common Utilities: `language-pack-en-base`, `software-properties-common`, `nano`, `wget`, `curl`, `git`, `unzip`, `snapd`, `screen` if they were installed by the script and are no longer needed by other applications. *Note: Some of these are common system tools; their removal might affect other system functionalities if they were not exclusively for eBot.*
-* **MySQL Data:** The command `apt-get purge mysql-server` often removes the MySQL data directory (e.g., `/var/lib/mysql`). **This means your eBot database AND ANY OTHER MySQL DATABASES on the server WILL LIKELY BE DELETED.**
-* **APT System Cleanup:** The script will run `apt-get autoremove`, `apt-get autoclean`, and `apt-get clean`.
+  * Server Software: Apache (`apache2`), MySQL Server (`mysql-server`), Redis Server (`redis-server`).
+  * PHP: PHP 7.4 core and extensions detected dynamically (`php7.4*`).
+  * Node.js/NPM: `nodejs`, `npm` (installed via apt).
+  * Optional Common Utilities: `language-pack-en-base`, `nano`, `wget`, `curl`, `git`, `unzip`, `screen` (only when `--include-common-tools` is provided).
+* **MySQL Data:** With `--purge-mysql-data`, `/var/lib/mysql` is deleted after an additional confirmation. Without the flag, data is preserved.
+* **APT System Cleanup:** `apt-get autoremove`, `apt-get autoclean`, and `apt-get clean` run only if you confirm.
 
-## Prerequisites
+## Command-Line Options
 
-* You must have the `uninstall_ebot.sh` script file (or the uninstaller script you are documenting).
-* You need **root privileges** (`sudo`) to run the script.
-* This script should be run on the same server where the original eBot CS2 installation script was executed.
+| Option | Description |
+| --- | --- |
+| `--force` | Automatically answers “yes” to all confirmations (dangerous; read the prompts before using). |
+| `--include-common-tools` | Adds common utilities (nano, wget, curl, git, unzip, screen) to the purge list when they are installed. |
+| `--preserve-home` | Keeps `/home/ebot` even when the script is otherwise instructed to delete it. |
+| `--purge-mysql-data` | Offers to remove `/var/lib/mysql` after packages are purged. |
+| `-h`, `--help` | Shows usage information. |
 
-## How to Use
+### Confirmation Prompts
 
-1.  **Backup Your Data:** Before proceeding, ensure you have complete backups of any data you cannot afford to lose from this server. This includes MySQL databases, website files, and any other critical information.
-2.  **Download/Locate the Script:** Make sure the uninstaller script (e.g., `uninstall_ebot.sh`) is present on your server.
-3.  **Make the Script Executable:**
-    ```bash
-    chmod +x uninstall_ebot.sh
-    ```
-4.  **Run the Script with `sudo`:**
-    ```bash
-    sudo ./uninstall_ebot.sh
-    ```
-5.  The script is designed to be largely non-interactive once started. Monitor its output for any errors or important messages.
-6.  Once the script finishes, review the output carefully.
+* Prompts default to **No**. Respond with `y`, `Y`, `yes`, or `YES` to proceed.
+* Using `--force` skips prompts while logging that confirmations were auto-accepted.
+
+## How to Use (English)
+
+1. **Back Up Your Data.** Make comprehensive backups of MySQL databases, website files, and any other critical data.
+2. **Obtain the Script.** Place `uninstall_ebot.sh` on the same server where the eBot CS2 installer was executed.
+3. **Make the Script Executable.**
+   ```bash
+   chmod +x uninstall_ebot.sh
+   ```
+4. **Review Available Flags.** Decide whether you need `--include-common-tools`, `--preserve-home`, or `--purge-mysql-data`. Avoid `--force` until you understand every destructive action.
+5. **Run with Root Privileges.**
+   ```bash
+   sudo ./uninstall_ebot.sh [options]
+   ```
+6. **Respond to Prompts.** Each destructive step requires confirmation unless `--force` is supplied. Watch the output for warnings or failures.
+7. **Audit Results.** After completion, review the log output and manually verify that unwanted components are gone.
+
+## Как использовать (Russian)
+
+1. **Сделайте резервные копии.** Сохраните базы данных MySQL, файлы сайтов и другие важные данные.
+2. **Получите скрипт.** Поместите `uninstall_ebot.sh` на тот же сервер, где запускался установщик eBot CS2.
+3. **Сделайте файл исполняемым.**
+   ```bash
+   chmod +x uninstall_ebot.sh
+   ```
+4. **Оцените флаги.** При необходимости используйте `--include-common-tools`, `--preserve-home` или `--purge-mysql-data`. Не применяйте `--force`, пока не ознакомитесь со всеми разрушительными действиями.
+5. **Запустите от имени root.**
+   ```bash
+   sudo ./uninstall_ebot.sh [опции]
+   ```
+6. **Отвечайте на запросы.** Каждый опасный шаг требует подтверждения, если не указан `--force`. Следите за предупреждениями и ошибками в выводе.
+7. **Проверьте результат.** После завершения изучите журнал и убедитесь, что ненужные компоненты удалены.
 
 ## Important Considerations & Warnings
 
-* **IRREVERSIBLE DATA LOSS:** This script is designed to remove data, especially MySQL databases. This action is irreversible without a prior backup.
-* **IMPACT ON SHARED COMPONENTS:** If other applications on your server depend on components being removed (e.g., Apache, PHP, MySQL, Node.js, Redis, or common utilities), those applications **will stop working**. This uninstaller is most safely used on a server that was dedicated to the eBot installation or that you intend to completely repurpose.
-* **SYSTEM STABILITY:** While the script targets components installed by the eBot installer, removing core packages like `snapd` or essential utilities can have wider implications if other parts of your system rely on them unexpectedly.
-* **PARTIAL UNINSTALLATION:** If the script is interrupted or encounters critical errors, the uninstallation process might be incomplete. You may need to manually identify and remove leftover components.
-* **NO GUARANTEES:** This script attempts a thorough uninstallation based on the actions of the original installer. However, it does not guarantee to restore your system to an exact pre-installation state, especially if other system changes were made manually outside of the installer.
+* **IRREVERSIBLE DATA LOSS:** Removing MySQL packages or opting in to `--purge-mysql-data` can permanently delete databases. Confirm only if you have reliable backups.
+* **IMPACT ON SHARED COMPONENTS:** If other applications depend on Apache, PHP, MySQL, Redis, Node.js, or the optional utilities, those applications will stop working.
+* **SYSTEM STABILITY:** Removing `snapd`, language packs, or other utilities might affect services outside of eBot. Review installed packages before agreeing to purge them.
+* **PARTIAL UNINSTALLATION:** Errors or interruptions can leave components behind. The script logs skipped items so you can address them manually.
+* **PROMPT BEHAVIOR:** Every confirmation defaults to “No.” Use `--force` only for unattended runs when you fully understand the consequences.
 
 ## After Running the Script
 
-* It is highly recommended to **reboot the server** to ensure all uninstalled services are fully stopped and the system state is refreshed:
-    ```bash
-    sudo reboot
-    ```
+* A reboot is recommended to ensure all uninstalled services are stopped and the system is refreshed:
+  ```bash
+  sudo reboot
+  ```
 * After rebooting, manually verify that the components listed above have been removed.
 * Check system logs for any unusual errors that might have arisen from the removal of packages.
 
-## Организация игровых мероприятий
+## Организация игровых мероприятий / Event Support
 
-Если вы планируете проводить турниры или другие игровые события, вы можете обратиться в команду [run-as-daemon.ru](https://run-as-daemon.ru/) за профессиональной поддержкой. На сайте перечислены актуальные услуги и доступны формы для связи, поэтому рекомендуем изучить предложения и обсудить конкретные потребности проекта напрямую с их специалистами.
+If you plan to run tournaments or other gaming events, consider contacting [run-as-daemon.ru](https://run-as-daemon.ru/) for professional assistance. The site lists current services and provides contact forms; please review their offerings and coordinate with their specialists directly.
+
+> **Note:** Direct access to https://run-as-daemon.ru/ from this sandboxed environment returns HTTP 403, so the README links to the official site for up-to-date information.
 
 ---
