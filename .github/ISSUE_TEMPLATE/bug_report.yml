@@ -1,0 +1,111 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in the uninstaller script
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out the information below to help us understand and fix the issue.
+        
+        **⚠️ Note:** Data loss or service removal is expected behavior for this script. Please only report bugs related to unintended behavior.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: I expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Instead...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Run command '...'
+        2. See error '...'
+        3. Check log at '...'
+    validations:
+      required: true
+
+  - type: input
+    id: ubuntu-version
+    attributes:
+      label: Ubuntu Version
+      description: Output of `cat /etc/os-release | grep VERSION_ID`
+      placeholder: "20.04 or 22.04"
+    validations:
+      required: true
+
+  - type: input
+    id: script-version
+    attributes:
+      label: Script Version
+      description: Version shown in `./uninstall_ebot.sh --help`
+      placeholder: "2.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command Run
+      description: The exact command you ran (with flags)
+      placeholder: "sudo ./uninstall_ebot.sh --dry-run"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: Relevant portions of `/var/log/uninstall_ebot_cs2.log` or terminal output
+      placeholder: Paste log excerpts here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other information that might be relevant (installed packages, previous runs, etc.)
+      placeholder: Additional details...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following before submitting
+      options:
+        - label: I have read the README.md documentation
+          required: true
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: This is a bug in the script, not expected destructive behavior
+          required: true
+        - label: I have included relevant log output
+          required: false
