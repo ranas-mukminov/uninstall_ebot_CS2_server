@@ -1,0 +1,108 @@
+name: Feature Request
+description: Suggest a new feature or improvement for the uninstaller script
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement! We appreciate your ideas for making this script better.
+        
+        **Note:** This script is designed for Ubuntu 20.04/22.04 and eBot CS2 installed via the Flegma script. Features outside this scope may not be accepted.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem does this feature solve? What use case does it address?
+      placeholder: Currently, the script doesn't... / I need to... / It would be helpful if...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this feature to work?
+      placeholder: I suggest adding... / The script could... / It would work by...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What alternatives have you considered? Why is this the best approach?
+      placeholder: I've thought about... / Another option would be... / This is better because...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: feature-type
+    attributes:
+      label: Feature Type
+      description: What type of feature is this?
+      options:
+        - New command-line option
+        - Improved safety/validation
+        - Better error handling
+        - Enhanced logging
+        - Documentation improvement
+        - Support for additional software/versions
+        - Other (describe in details)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Nice to have
+        - Would be helpful
+        - Important for my use case
+        - Critical/blocking issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or Mockups
+      description: Show examples of how this would work (commands, output, etc.)
+      placeholder: |
+        Example command:
+        $ sudo ./uninstall_ebot.sh --new-feature
+        
+        Expected output:
+        [Feature] Doing something new...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other relevant information, links, screenshots, etc.
+      placeholder: Additional details...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following before submitting
+      options:
+        - label: I have read the README.md documentation
+          required: true
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: This feature aligns with the script's purpose (uninstalling eBot CS2)
+          required: true
+        - label: I am willing to test this feature if implemented
+          required: false
+        - label: I am willing to contribute code for this feature
+          required: false
