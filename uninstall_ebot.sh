@@ -19,9 +19,11 @@ Options:
   --dry-run               Show what would be done without making any changes.
   --force-all             Run without any interactive confirmations (DANGEROUS).
   --force                 Run without interactive confirmations for destructive steps (alias for --force-all).
-  --include-common-tools  Also remove common utility packages (nano, wget, curl, git, unzip, screen).
+  --include-common-tools  Also remove common utility packages (nano, wget, curl, git, unzip, screen,
+                          software-properties-common).
   --preserve-home         Keep /home/ebot instead of deleting it.
   --purge-mysql-data      Remove /var/lib/mysql directory after package removal.
+  --purge-snapd           Also purge snapd itself (removes EVERY snap on the host and its data).
   -h, --help              Show this help message.
 
 Environment Variables:
@@ -41,6 +43,7 @@ FORCE_ALL=0
 INCLUDE_COMMON_TOOLS=0
 PRESERVE_HOME=0
 PURGE_MYSQL_DATA=0
+PURGE_SNAPD=0
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -59,6 +62,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --purge-mysql-data)
       PURGE_MYSQL_DATA=1
+      ;;
+    --purge-snapd)
+      PURGE_SNAPD=1
       ;;
     -h|--help)
       usage
@@ -615,8 +621,22 @@ remove_apt_packages() {
     log_info "No target packages found for removal."
   fi
   
-  log_info "Attempting to remove software-properties-common and snapd if installed..."
-  local MISC_PACKAGES=(software-properties-common snapd)
+  # These are shared system packages, not eBot dependencies. Purging snapd
+  # removes every installed snap (lxd, core, firefox, ...) and /var/snap data,
+  # so neither may be removed unless the operator explicitly opted in; --force-all
+  # alone must not do it.
+  local MISC_PACKAGES=()
+  if [[ ${INCLUDE_COMMON_TOOLS} -eq 1 ]]; then
+    MISC_PACKAGES+=(software-properties-common)
+  fi
+  if [[ ${PURGE_SNAPD} -eq 1 ]]; then
+    MISC_PACKAGES+=(snapd)
+  fi
+  if [[ ${#MISC_PACKAGES[@]} -eq 0 ]]; then
+    log_info "software-properties-common and snapd preserved (use --include-common-tools / --purge-snapd)."
+    return 0
+  fi
+  log_info "Attempting to remove ${MISC_PACKAGES[*]} if installed..."
   mapfile -t INSTALLED_MISC < <(filter_installed_packages MISC_PACKAGES)
   
   if [[ ${#INSTALLED_MISC[@]} -gt 0 ]]; then
@@ -634,7 +654,7 @@ remove_apt_packages() {
       log_warn "Purge of misc packages skipped by user."
     fi
   else
-    log_info "software-properties-common and snapd not installed or already removed."
+    log_info "${MISC_PACKAGES[*]} not installed or already removed."
   fi
 }
 
@@ -703,7 +723,7 @@ main() {
   log_warn "  - Apache, PHP, MySQL, Redis, Node.js"
   log_warn "  - phpMyAdmin, Composer, global npm packages"
   log_warn "  - Snap packages (certbot)"
-  log_warn "  - Optional: common utilities and MySQL data"
+  log_warn "  - Optional: common utilities, snapd (all snaps), and MySQL data"
   log_warn ""
   log_warn "OTHER APPLICATIONS using these components WILL BE AFFECTED!"
   log_warn ""

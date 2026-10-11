@@ -69,12 +69,12 @@ The uninstaller includes safety features like dry-run mode, interactive confirma
 
 ### APT Repositories and Cleanup
 - **PPA:** `ppa:ondrej/php` (requires confirmation)
-- **Misc packages:** `software-properties-common`, `snapd` (requires confirmation)
+- **snapd:** only with `--purge-snapd` (purging snapd removes every snap on the host and its data)
 - **APT cache:** `autoremove`, `autoclean`, `clean` (requires confirmation)
 
 ### Optional: Common Utilities
 **(Only with `--include-common-tools` flag)**
-- `nano`, `wget`, `curl`, `git`, `unzip`, `screen`
+- `nano`, `wget`, `curl`, `git`, `unzip`, `screen`, `software-properties-common`
 
 ⚠️ **Impact Warning:** Removing these utilities may break system administration workflows and other applications.
 
@@ -159,9 +159,10 @@ sudo ./uninstall_ebot.sh --force-all --preserve-home
 | `--dry-run` | Preview all actions without making changes |
 | `--force-all` | Skip ALL confirmation prompts (DANGEROUS) |
 | `--force` | Alias for `--force-all` |
-| `--include-common-tools` | Also remove common utilities (nano, wget, curl, git, unzip, screen) |
+| `--include-common-tools` | Also remove common utilities (nano, wget, curl, git, unzip, screen, software-properties-common) |
 | `--preserve-home` | Keep `/home/ebot` directory intact |
 | `--purge-mysql-data` | Remove `/var/lib/mysql` after package removal (requires additional confirmation) |
+| `--purge-snapd` | Also purge `snapd` itself, which removes every snap on the host (not just certbot) |
 | `-h`, `--help` | Display help message |
 
 ### Environment Variables
